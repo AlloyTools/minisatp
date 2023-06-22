@@ -1,31 +1,18 @@
-/******************************************************************************************[File.h]
-Copyright (c) 2005-2010, Niklas Een, Niklas Sorensson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-associated documentation files (the "Software"), to deal in the Software without restriction,
-including without limitation the rights to use, copy, modify, merge, publish, distribute,
-sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or
-substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
-NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
-OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-**************************************************************************************************/
-
 #ifndef File_h
 #define File_h
+
+#ifndef Global_h
+#include "Global.h"
+#endif
 
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 
-#define lseek64 lseek   // }- (disable explicit 64-bit support for FreeBSD...)
-#define open64  ::open  // }
+#ifndef _LARGEFILE64_SOURCE
+#define lseek64 ::lseek
+#define open64  ::open
+#endif
 
 
 //=================================================================================================
@@ -35,6 +22,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #define File_BufSize 1024   // A small buffer seem to work just as fine as a big one (at least under Linux)
 
 enum FileMode { READ, WRITE };
+
+class Exception_EOF {};
 
 
 // WARNING! This code is not thoroughly tested. May contain bugs!
@@ -103,10 +92,9 @@ public:
       #ifdef PARANOID
         assert(mode == WRITE);
       #endif
-        if (pos == File_BufSize){
-            ssize_t wrote = write(fd, buf, File_BufSize);
-            if (wrote != File_BufSize) printf("ERROR! Write failed.\n"), exit(1);
-            pos = 0; }
+        if (pos == File_BufSize)
+            write(fd, buf, File_BufSize),
+            pos = 0;
         return buf[pos++] = (uchar)chr; }
 
     int getChar(void) {
@@ -128,8 +116,7 @@ public:
 
     void flush(void) {
         assert(mode == WRITE);
-        ssize_t wrote = write(fd, buf, pos);
-        if (wrote != pos) printf("ERROR! Write failed.\n"), exit(1);
+        write(fd, buf, pos);
         pos = 0; }
 
     void  seek(int64 pos, int whence = SEEK_SET);
@@ -141,12 +128,12 @@ public:
 // Some nice helper functions:
 
 
-void         putUInt (File& out, uint64 val);
-uint64       getUInt (File& in);
-macro uint64 encode64(int64  val)           { return (val >= 0) ? (uint64)val << 1 : (((uint64)(~val) << 1) | 1); }
-macro int64  decode64(uint64 val)           { return ((val & 1) == 0) ? (int64)(val >> 1) : ~(int64)(val >> 1); }
-macro void   putInt  (File& out, int64 val) { putUInt(out, encode64(val)); }
-macro uint64 getInt  (File& in)             { return decode64(getUInt(in)); }
+void                 putUInt (File& out, uint64 val);
+uint64               getUInt (File& in) throw(Exception_EOF);
+static inline uint64 encode64(int64  val)           { return (val >= 0) ? (uint64)val << 1 : (((uint64)(~val) << 1) | 1); }
+static inline int64  decode64(uint64 val)           { return ((val & 1) == 0) ? (int64)(val >> 1) : ~(int64)(val >> 1); }
+static inline void   putInt  (File& out, int64 val) { putUInt(out, encode64(val)); }
+static inline uint64 getInt  (File& in)             { return decode64(getUInt(in)); }
 
 
 //=================================================================================================

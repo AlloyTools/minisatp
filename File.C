@@ -1,24 +1,4 @@
-/*****************************************************************************************[File.cc]
-Copyright (c) 2005-2010, Niklas Een, Niklas Sorensson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-associated documentation files (the "Software"), to deal in the Software without restriction,
-including without limitation the rights to use, copy, modify, merge, publish, distribute,
-sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or
-substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
-NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
-OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-**************************************************************************************************/
-
 #include "File.h"
-
 
 void File::open(int file_descr, FileMode m, bool own)
 {
@@ -39,6 +19,7 @@ void File::open(cchar* name, cchar* mode_)
     bool    has_w = strchr(mode_, 'w') != NULL;
     bool    has_a = strchr(mode_, 'a') != NULL;
     bool    has_p = strchr(mode_, '+') != NULL;
+    bool    has_x = strchr(mode_, 'x') != NULL;
     assert(!(has_r && has_w));
     assert(has_r || has_w || has_a);
 
@@ -49,8 +30,13 @@ void File::open(cchar* name, cchar* mode_)
 
     if (!has_r) mask |= O_CREAT;
     if (has_w)  mask |= O_TRUNC;
+    if (has_x)  mask |= O_EXCL;
 
-    fd = open64(name, mask, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
+	#ifdef MINGW
+	fd = open64(name, mask|O_RANDOM|O_BINARY, S_IRUSR|S_IWUSR);
+	#else
+	fd = open64(name, mask, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
+	#endif
 
     if (fd != -1){
         mode   = has_r ? READ : WRITE;
@@ -135,11 +121,13 @@ void putUInt(File& out, uint64 val)
 }
 
 
-uint64 getUInt(File& in)    // Returns 0 at end-of-file.
+uint64 getUInt(File& in)
+    throw(Exception_EOF)
 {
     uint byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7;
     byte0 = in.getChar();
-    if (byte0 == (uint)EOF) return 0;
+    if (byte0 == (uint)EOF)
+        throw Exception_EOF();
     if (!(byte0 & 0x80))
         return byte0;
     else{
@@ -157,7 +145,6 @@ uint64 getUInt(File& in)    // Returns 0 at end-of-file.
             byte3 = in.getChar();
             return ((byte0 & 0x1F) << 24) | (byte1 << 16) | (byte2 << 8) | byte3;
         default:
-            assert(((byte0 & 0x60) >> 5) == 3);
             byte0 = in.getChar();
             byte1 = in.getChar();
             byte2 = in.getChar();
@@ -169,6 +156,5 @@ uint64 getUInt(File& in)    // Returns 0 at end-of-file.
             return ((uint64)((byte0 << 24) | (byte1 << 16) | (byte2 << 8) | byte3) << 32)
                  |  (uint64)((byte4 << 24) | (byte5 << 16) | (byte6 << 8) | byte7);
         }
-        assert(false);
     }
 }
