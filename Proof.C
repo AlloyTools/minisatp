@@ -40,45 +40,21 @@ public:
     // remove the file (which is otherwise done automatically upon program exit).
     //
 
-char* open(File& fp)
-{
-    char template[] = "/tmp/mytempfileXXXXXX";
-    int fd;
-    
-    for(;;) {
-        fd = mkstemp(template);
-        if (fd == -1) {
-            perror("mkstemp");
-            continue;
-        }
-
-        fp = fdopen(fd, "w+");
-
-        if (fp == nullptr) {
-            close(fd);
-        } else {
-            char* name = strdup(template);
-            files.push(name);
-            return name;
+    char* open(File& fp)
+    {
+        char*   name;
+        for(;;){
+            name = tempnam(NULL, NULL);     // (gcc complains about this... stupid gcc...)
+            assert(name != NULL);
+            fp.open(name, "wx+");
+            if (fp.null())
+                xfree(name);
+            else{
+                files.push(name);
+                return name;
+            }
         }
     }
-}
-
-//    char* open(File& fp)
-//    {
-//        char*   name;
-//        for(;;){
-//            name = tempnam(NULL, NULL);     // (gcc complains about this... stupid gcc...)
-//            assert(name != NULL);
-//            fp.open(name, "wx+");
-//            if (fp.null())
-//                xfree(name);
-//            else{
-//                files.push(name);
-//                return name;
-//            }
-//        }
-//    }
 };
 static TempFiles temp_files;       // (should be singleton)
 
